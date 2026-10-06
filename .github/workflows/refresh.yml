@@ -3,7 +3,7 @@ name: Refresh Brief Window
 on:
   workflow_dispatch:
   schedule:
-    - cron: "7,17,27,37,47,57 * * * *"
+    - cron: "4,14,24,34,44,54 * * * *"
 
 permissions:
   contents: read

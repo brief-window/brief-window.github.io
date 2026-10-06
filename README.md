@@ -31,7 +31,7 @@ python3 -m venv .venv
 2. Actions → **Refresh Brief Window** → **Run workflow**。
 3. 查看 <https://brief-window.github.io/> 和 <https://brief-window.github.io/status.json>。
 
-定时任务为每小时 UTC 的第 `7,17,27,37,47,57` 分钟。GitHub 可能延迟或丢弃 scheduled run；以页面 `Generated UTC` 和 `status.json` 为准。取消运行或平台故障也可能让旧页面继续存在。
+定时任务为每小时 UTC 的第 `4,14,24,34,44,54` 分钟。GitHub 可能延迟或丢弃 scheduled run；以页面 `Generated UTC` 和 `status.json` 为准。取消运行或平台故障也可能让旧页面继续存在。
 
 ## 可见性与保留范围
 
