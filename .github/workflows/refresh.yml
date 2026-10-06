@@ -1,0 +1,73 @@
+name: Refresh Brief Window
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,17,27,37,47,57 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    outputs:
+      collection_outcome: ${{ steps.collect.outcome }}
+      artifact_id: ${{ steps.upload.outputs.artifact_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check collector
+        run: python -m unittest discover -s tests -v
+      - name: Collect forum posts
+        id: collect
+        continue-on-error: true
+        run: python collector.py
+      - name: Upload Pages artifact
+        id: upload
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+          retention-days: 1
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+      actions: write
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Delete temporary feed artifact
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+        run: gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${ARTIFACT_ID}"
+      - name: Report collection failure
+        if: needs.build.outputs.collection_outcome != 'success'
+        run: |
+          echo "Collection failed. An empty status page was deployed to replace old posts."
+          exit 1
