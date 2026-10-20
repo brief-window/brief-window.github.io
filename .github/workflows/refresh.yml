@@ -19,6 +19,7 @@ jobs:
     outputs:
       collection_outcome: ${{ steps.collect.outcome }}
       artifact_id: ${{ steps.upload.outputs.artifact_id }}
+      reader_artifact_id: ${{ steps.reader_upload.outputs['artifact-id'] }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -41,6 +42,14 @@ jobs:
         with:
           path: public
           retention-days: 1
+      - name: Upload latest reader snapshot
+        id: reader_upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: brief-window-feed
+          path: public/feed.json
+          retention-days: 1
+          if-no-files-found: error
 
   deploy:
     environment:
@@ -66,6 +75,22 @@ jobs:
           GH_REPO: ${{ github.repository }}
           ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
         run: gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${ARTIFACT_ID}"
+      - name: Remove older reader snapshots
+        if: ${{ always() && needs.build.outputs.reader_artifact_id != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          READER_ARTIFACT_ID: ${{ needs.build.outputs.reader_artifact_id }}
+        run: |
+          set -euo pipefail
+          [[ "$READER_ARTIFACT_ID" =~ ^[0-9]+$ ]]
+          gh api --paginate "repos/${GH_REPO}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name == "brief-window-feed") | .id' |
+          while IFS= read -r task_snapshot_id; do
+            if [[ "$task_snapshot_id" =~ ^[0-9]+$ ]] && (( task_snapshot_id < READER_ARTIFACT_ID )); then
+              gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${task_snapshot_id}"
+            fi
+          done
       - name: Report collection failure
         if: needs.build.outputs.collection_outcome != 'success'
         run: |
