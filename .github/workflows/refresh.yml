@@ -84,10 +84,14 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$READER_ARTIFACT_ID" =~ ^[0-9]+$ ]]
+          task_current_created_at="$(gh api "repos/${GH_REPO}/actions/artifacts/${READER_ARTIFACT_ID}" --jq '.created_at')"
+          [[ "$task_current_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
           gh api --paginate "repos/${GH_REPO}/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.name == "brief-window-feed") | .id' |
-          while IFS= read -r task_snapshot_id; do
-            if [[ "$task_snapshot_id" =~ ^[0-9]+$ ]] && (( task_snapshot_id < READER_ARTIFACT_ID )); then
+            --jq '.artifacts[] | select(.name == "brief-window-feed") | [.id, .created_at] | @tsv' |
+          while IFS=$'\t' read -r task_snapshot_id task_snapshot_created_at; do
+            if [[ "$task_snapshot_id" =~ ^[0-9]+$ ]] &&
+              [[ "$task_snapshot_id" != "$READER_ARTIFACT_ID" ]] &&
+              [[ "$task_snapshot_created_at" < "$task_current_created_at" || "$task_snapshot_created_at" == "$task_current_created_at" ]]; then
               gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${task_snapshot_id}"
             fi
           done
