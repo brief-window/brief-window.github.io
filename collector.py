@@ -229,6 +229,21 @@ def write_output(output: Path, posts: list[dict], now: datetime, cutoff: datetim
     (output / "index.html").write_text(render(posts, now, cutoff, error), encoding="utf-8")
     (output / "robots.txt").write_text(ROBOTS, encoding="utf-8")
     (output / ".nojekyll").touch()
+    # A small HTML entry point separates access failures from full-feed size.
+    reader_status = html.escape(error) if error else "Collection succeeded."
+    (output / "reader.html").write_text(
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="robots" content="noindex, nofollow, noarchive">'
+        '<title>Brief Window reader status</title></head><body>'
+        '<h1>Brief Window reader status</h1>'
+        f'<p>Generated UTC: {html.escape(now.isoformat())}</p>'
+        f'<p>Window UTC: {html.escape(cutoff.isoformat())} to {html.escape(now.isoformat())}</p>'
+        f'<p>Total posts: {len(posts)}; total topics: {len({p["topic_id"] for p in posts})}</p>'
+        f'<p>{reader_status}</p>'
+        '<p><a href="index.html">Full raw-post feed</a> | '
+        '<a href="status.json">Status JSON</a></p></body></html>\n',
+        encoding="utf-8",
+    )
     # Operational metadata only: no duplicate or archived post bodies.
     (output / "status.json").write_text(json.dumps({
         "ok": error is None,
