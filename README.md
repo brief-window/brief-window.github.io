@@ -31,7 +31,11 @@ python3 -m venv .venv
 2. Actions → **Refresh Brief Window** → **Run workflow**。
 3. 查看 <https://brief-window.github.io/> 和 <https://brief-window.github.io/status.json>。
 
-定时任务为每小时 UTC 的第 `4,14,24,34,44,54` 分钟。GitHub 可能延迟或丢弃 scheduled run；以页面 `Generated UTC` 和 `status.json` 为准。取消运行或平台故障也可能让旧页面继续存在。
+自动刷新由 cron-job.org 每小时的第 `3,13,23,33,43,53` 分钟通过 GitHub REST API 触发 `refresh.yml` 的 `workflow_dispatch`，间隔为 10 分钟。GitHub 原生 `schedule`（第 `4,14,24,34,44,54` 分钟）暂保留为备用，可能延迟或丢弃。
+
+外部自动触发和手动运行在 GitHub 中都显示为 `workflow_dispatch`；是否按时自动触发，应查看 cron-job.org 的执行历史。请求返回成功只表示 GitHub 接收了触发请求，还需确认 Actions 完成，并检查页面 `Generated UTC` 和 `status.json` 的 `generated_at` 已更新。取消运行、部署或平台故障也可能让旧页面继续存在。
+
+定时服务使用限定到本仓库、仅授予 Actions 读写权限的 fine-grained token。凭据保存在定时服务配置中，不写入仓库；到期前须在服务中替换。
 
 ## 可见性与保留范围
 
