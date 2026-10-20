@@ -23,7 +23,7 @@ python3 -m venv .venv
 .venv/bin/python collector.py
 ```
 
-输出：`public/index.html`、`public/status.json`、`public/robots.txt`、`public/.nojekyll`。`public/` 被 Git 忽略，帖子正文不会进入 Git 历史。
+输出：`public/index.html`、`public/status.json`、`public/reader.html`、`public/robots.txt`、`public/.nojekyll`。`reader.html` 是不足 1 KiB 的 HTML 状态入口，只包含生成时间、计数、状态和正文链接，可用来区分网页工具访问失败与正文大小问题。`public/` 被 Git 忽略，帖子正文不会进入 Git 历史。
 
 ## GitHub Pages
 
