@@ -39,10 +39,10 @@ python3 -m venv .venv
 
 ## 可见性与保留范围
 
-源代码仓库与 Pages 网站均公开。页面带 `noindex`，域名根路径 `/robots.txt` 禁止搜索引擎抓取；二者都是搜索引擎指引，不是访问控制，也不保证第三方不会收录或保存内容。
+源代码仓库与 Pages 网站均公开。页面带 `noindex, nofollow, noarchive`。域名根路径 `/robots.txt` 仅允许 `ChatGPT-User` 和 `OAI-SearchBot` 读取，其他爬虫（包括 `GPTBot`、Googlebot 和 Bingbot）仍被禁止。robots 和页面元数据都是爬虫指引，不是访问控制，也不保证第三方不会收录或保存内容。
 
 每次生成替换整个 3 小时快照，不保存本项目的长期 archive。Pages 临时 artifact 部署后删除；异常未删时由一天 retention 清理。GitHub 内部部署副本、CDN 缓存、第三方下载不受本项目控制。静态 Pages 无法在 workflow 停止后自动删除服务器端内容，因此这不是严格的 3 小时 TTL。
 
-浏览器或普通 HTTP 请求可以读取页面，不代表 GPT 的网页读取工具一定能直接访问；需单独验证兼容性。
+浏览器或普通 HTTP 请求可以读取页面，不代表 GPT 的网页读取工具一定能直接访问；需单独验证兼容性。OpenAI 的搜索读取与训练爬虫设置相互独立；用户主动访问的 `ChatGPT-User` 请求也不一定适用 robots 规则。robots 更新可能需要时间被读取工具识别，不能把部署成功当作读取成功。参考：[OpenAI 爬虫说明](https://developers.openai.com/api/docs/bots)。
 
 参考：[Discourse API](https://docs.discourse.org/#tag/Posts/operation/listPosts)、[Discourse 最新帖子查询](https://github.com/discourse/discourse/blob/main/lib/latest_posts_query.rb)、[GitHub Pages workflow](https://docs.github.com/en/get-started/start-your-journey/deploying-your-website-automatically)、[定时任务延迟](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#scheduled-workflows-running-at-unexpected-times)。
