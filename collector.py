@@ -241,6 +241,7 @@ def write_output(output: Path, posts: list[dict], now: datetime, cutoff: datetim
         f'<p>Total posts: {len(posts)}; total topics: {len({p["topic_id"] for p in posts})}</p>'
         f'<p>{reader_status}</p>'
         '<p><a href="index.html">Full raw-post feed</a> | '
+        '<a href="feed.json">Raw posts JSON</a> | '
         '<a href="status.json">Status JSON</a></p></body></html>\n',
         encoding="utf-8",
     )
@@ -256,6 +257,16 @@ def write_output(output: Path, posts: list[dict], now: datetime, cutoff: datetim
         "pages_fetched": pages,
         "error": error,
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # One replaceable machine-readable snapshot; never committed to Git.
+    status = json.loads((output / "status.json").read_text(encoding="utf-8"))
+    feed = {
+        "schema_version": 1,
+        **status,
+        "posts": [{**post, "created_at": post["created_at"].isoformat()} for post in posts],
+    }
+    (output / "feed.json").write_text(
+        json.dumps(feed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def main() -> int:
