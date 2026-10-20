@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -95,6 +96,7 @@ class CollectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / "index.html").write_text("STALE POST", encoding="utf-8")
+            (output / "feed.json").write_text('{"posts": ["STALE POST"]}', encoding="utf-8")
             with patch.object(collector.ForumClient, "get_json", side_effect=collector.CollectionError("HTTP 403")), \
                  patch("sys.argv", ["collector.py", "--output", str(output)]):
                 self.assertEqual(collector.main(), 1)
@@ -103,6 +105,26 @@ class CollectorTests(unittest.TestCase):
             self.assertIn("HTTP 403", text)
             self.assertIn("Total posts: 0", text)
             self.assertEqual((output / "robots.txt").read_text(), collector.ROBOTS)
+            feed = json.loads((output / "feed.json").read_text(encoding="utf-8"))
+            self.assertFalse(feed["ok"])
+            self.assertEqual(feed["posts"], [])
+            self.assertEqual(feed["total_posts"], 0)
+            self.assertIn("HTTP 403", feed["error"])
+
+    def test_json_snapshot_preserves_full_body_ids_and_window(self):
+        body = '完整正文 "quoted" <script>test</script>\n' * 400
+        posts, _ = self.collect(FakeClient([[post(10, raw=body)], []]))
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            collector.write_output(output, posts, NOW, CUTOFF, pages=2)
+            feed = json.loads((output / "feed.json").read_text(encoding="utf-8"))
+            self.assertTrue(feed["ok"])
+            self.assertEqual(feed["generated_at"], NOW.isoformat())
+            self.assertEqual(feed["cutoff"], CUTOFF.isoformat())
+            self.assertEqual(feed["total_posts"], len(feed["posts"]))
+            self.assertEqual(feed["posts"][0]["id"], 10)
+            self.assertEqual(feed["posts"][0]["text"], body)
+            self.assertEqual(collector.parse_time(feed["posts"][0]["created_at"]), posts[0]["created_at"])
 
 
 if __name__ == "__main__":
