@@ -19,7 +19,11 @@ from bs4 import BeautifulSoup
 BASE_URL = "https://www.uscardforum.com"
 LOOKBACK_HOURS = 3
 TARGET_CATEGORIES = {12: "玩卡", 15: "旅行", 9: "理财"}
-ROBOTS = "User-agent: *\nDisallow: /\n"
+ROBOTS = (
+    "User-agent: ChatGPT-User\nAllow: /\n\n"
+    "User-agent: OAI-SearchBot\nAllow: /\n\n"
+    "User-agent: *\nDisallow: /\n"
+)
 
 
 class CollectionError(RuntimeError):
