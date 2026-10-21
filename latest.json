@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "repository": "brief-window/brief-window.github.io",
+  "workflow": "Refresh Brief Window",
+  "run_id": 39636575035,
+  "run_url": "https://github.com/brief-window/brief-window.github.io/actions/runs/39636575035",
+  "artifact_id": 12360719397,
+  "artifact_name": "brief-window-feed",
+  "artifact_sha256": "048f5f09d48d9950b09c05bd997317ec748e5106d1b1f693edb3a91569a034c0",
+  "source_sha": "adec5018f194ffda45dfcc88fb3b25e2f66d7b95",
+  "published_at": "2026-10-21T16:39:33.061318+00:00",
+  "ok": true,
+  "generated_at": "2026-10-21T16:38:39.813147+00:00",
+  "cutoff": "2026-10-21T13:38:39.813147+00:00",
+  "lookback_hours": 3,
+  "categories": [
+    "玩卡",
+    "旅行",
+    "理财"
+  ],
+  "total_posts": 445,
+  "total_topics": 115,
+  "pages_fetched": 18,
+  "error": null
+}
