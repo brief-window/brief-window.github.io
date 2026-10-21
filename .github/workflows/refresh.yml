@@ -20,6 +20,8 @@ jobs:
       collection_outcome: ${{ steps.collect.outcome }}
       artifact_id: ${{ steps.upload.outputs.artifact_id }}
       reader_artifact_id: ${{ steps.reader_upload.outputs['artifact-id'] }}
+      reader_artifact_digest: ${{ steps.reader_upload.outputs['artifact-digest'] }}
+      reader_status_json: ${{ steps.reader_metadata.outputs.status_json }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -36,6 +38,9 @@ jobs:
         id: collect
         continue-on-error: true
         run: python collector.py
+      - name: Prepare reader metadata
+        id: reader_metadata
+        run: python reader_index.py status
       - name: Upload Pages artifact
         id: upload
         uses: actions/upload-pages-artifact@v4
@@ -75,28 +80,32 @@ jobs:
           GH_REPO: ${{ github.repository }}
           ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
         run: gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${ARTIFACT_ID}"
-      - name: Remove older reader snapshots
-        if: ${{ always() && needs.build.outputs.reader_artifact_id != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          READER_ARTIFACT_ID: ${{ needs.build.outputs.reader_artifact_id }}
-        run: |
-          set -euo pipefail
-          [[ "$READER_ARTIFACT_ID" =~ ^[0-9]+$ ]]
-          task_current_created_at="$(gh api "repos/${GH_REPO}/actions/artifacts/${READER_ARTIFACT_ID}" --jq '.created_at')"
-          [[ "$task_current_created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
-          gh api --paginate "repos/${GH_REPO}/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.name == "brief-window-feed") | [.id, .created_at] | @tsv' |
-          while IFS=$'\t' read -r task_snapshot_id task_snapshot_created_at; do
-            if [[ "$task_snapshot_id" =~ ^[0-9]+$ ]] &&
-              [[ "$task_snapshot_id" != "$READER_ARTIFACT_ID" ]] &&
-              [[ "$task_snapshot_created_at" < "$task_current_created_at" || "$task_snapshot_created_at" == "$task_current_created_at" ]]; then
-              gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${task_snapshot_id}"
-            fi
-          done
       - name: Report collection failure
         if: needs.build.outputs.collection_outcome != 'success'
         run: |
           echo "Collection failed. An empty status page was deployed to replace old posts."
           exit 1
+
+  publish-reader-index:
+    needs: [build, deploy]
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.build.result == 'success' && needs.build.outputs.reader_artifact_id != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout index publisher
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Publish latest index and then remove superseded snapshots
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SOURCE_SHA: ${{ github.sha }}
+          READER_ARTIFACT_ID: ${{ needs.build.outputs.reader_artifact_id }}
+          READER_ARTIFACT_DIGEST: ${{ needs.build.outputs.reader_artifact_digest }}
+          FEED_STATUS_JSON: ${{ needs.build.outputs.reader_status_json }}
+        run: python3 reader_index.py publish
