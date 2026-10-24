@@ -2,16 +2,16 @@
   "schema_version": 1,
   "repository": "brief-window/brief-window.github.io",
   "workflow": "Refresh Brief Window",
-  "run_id": 40086360479,
-  "run_url": "https://github.com/brief-window/brief-window.github.io/actions/runs/40086360479",
-  "artifact_id": 12556404047,
+  "run_id": 40087013475,
+  "run_url": "https://github.com/brief-window/brief-window.github.io/actions/runs/40087013475",
+  "artifact_id": 12557382688,
   "artifact_name": "brief-window-feed",
-  "artifact_sha256": "adbffbced75b3fa36cf9a083466be83573e5a2340b01c13a7fa44327062e5f32",
-  "source_sha": "58fa935cafd3f005261652a9b38a5cebe97be35c",
-  "published_at": "2026-10-24T10:34:20.361815+00:00",
+  "artifact_sha256": "01ba5df4d7fc5a3b06d00aa1977876b29c00d7de7b26d50fb61b51a42c91d4a9",
+  "source_sha": "c81134cb3d4e28bfa9b64ab93ae436eda0a5af23",
+  "published_at": "2026-10-24T10:43:49.846517+00:00",
   "ok": true,
-  "generated_at": "2026-10-24T10:33:16.107432+00:00",
-  "cutoff": "2026-10-24T07:33:16.107432+00:00",
+  "generated_at": "2026-10-24T10:43:16.981516+00:00",
+  "cutoff": "2026-10-24T07:43:16.981516+00:00",
   "lookback_hours": 3,
   "categories": [
     "玩卡",
@@ -19,7 +19,7 @@
     "理财"
   ],
   "total_posts": 93,
-  "total_topics": 39,
+  "total_topics": 43,
   "pages_fetched": 5,
   "error": null
 }
