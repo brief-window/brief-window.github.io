@@ -127,7 +127,7 @@ def notify_outage(api, repository, current, status):
                     f"- 连续失败次数：{current['failure_count']}\n"
                     f"- 错误类别：{reason}\n"
                     f"- [查看运行日志](https://github.com/{repository}/actions/runs/{current['last_run_id']})\n\n"
-                    "后台仍会每30分钟继续采集。帖子正文和错误响应正文不会写入这个通知。\n",
+                    "后台仍会按约30分钟间隔（带随机错峰）继续采集。帖子正文和错误响应正文不会写入这个通知。\n",
         }, lambda: find_issue(api, root, marker))
     return issue["number"]
 

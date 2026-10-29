@@ -31,7 +31,7 @@ python3 -m venv .venv
 2. Actions → **Refresh Brief Window** → **Run workflow**。
 3. 查看 <https://brief-window.github.io/> 和 <https://brief-window.github.io/status.json>。
 
-自动刷新由 cron-job.org 每小时的第 `3,33` 分钟通过 GitHub REST API 触发 `refresh.yml` 的 `workflow_dispatch`，间隔为30分钟。删除重复的 GitHub 原生 `schedule`，只保留一套定时触发；仍可手动运行。
+自动刷新由 cron-job.org 每小时的第 `3,33` 分钟通过 GitHub REST API 触发 `refresh.yml` 的 `workflow_dispatch`。每轮采集前独立随机等待0–8分钟，因此实际采集间隔通常在22–38分钟之间，平均约30分钟；GitHub排队可能带来额外延迟。分类缓存和正文均在这次随机等待之后读取。删除重复的 GitHub 原生 `schedule`，只保留一套定时触发；仍可手动运行。
 
 外部自动触发和手动运行在 GitHub 中都显示为 `workflow_dispatch`；是否按时自动触发，应查看 cron-job.org 的执行历史。请求返回成功只表示 GitHub 接收了触发请求，还需确认 Actions 完成，并检查页面 `Generated UTC` 和 `status.json` 的 `generated_at` 已更新。取消运行、部署或平台故障也可能让旧页面继续存在。
 
@@ -60,7 +60,7 @@ python3 -m venv .venv
 
 示例请求：“通过 GitHub 连接读取 brief-window/brief-window.github.io 的 main/latest.json，下载其中指定的 brief-window-feed artifact，解压并完整验证 feed.json 后分析最近三小时的帖子。失败最多尝试6轮，不自行暂停后续每小时任务。”
 
-`reader_index.py` 由独立的 `publish-reader-index` job 执行：先验证上传文件的名称、所属运行和摘要，发布并读回 `latest.json` 后才删除更早的同名快照。网络、限流和服务端错误最多请求 5 次；目录写入冲突和读回延迟也有多次恢复机会。发布或读回失败时保留原有快照，供下一轮继续恢复。只有这个目录发布 job 新增 `contents: write`，用于更新本仓库的元数据文件；定时服务保存的 token 权限不变。
+`reader_index.py` 由独立的 `publish-reader-index` job 执行：先验证上传文件的名称、所属运行和摘要，发布并读回 `latest.json` 后才删除更早的同名快照。网络、限流和服务端错误最多请求 5 次；目录写入冲突和读回延迟也有多次恢复机会。发布或读回失败时保留原有快照，供下一轮继续恢复。目录发布job和健康记录job分别使用 `contents: write` 更新各自的元数据；健康记录job另用 `issues: write` 发送合并通知。定时服务保存的 token 权限不变。
 
 ## 可见性与保留范围
 
