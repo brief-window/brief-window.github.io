@@ -2,8 +2,7 @@ name: Refresh Brief Window
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "4,14,24,34,44,54 * * * *"
+  # cron-job.org dispatches at :03 and :33. Keep one scheduler to avoid duplicates.
 
 permissions:
   contents: read
@@ -15,7 +14,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     outputs:
       collection_outcome: ${{ steps.collect.outcome }}
       artifact_id: ${{ steps.upload.outputs.artifact_id }}
@@ -34,10 +33,28 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Check collector
         run: python -m unittest discover -s tests -v
+      - name: Restore category metadata cache (no post bodies)
+        uses: actions/cache@v4
+        with:
+          path: .cache/forum-categories.json
+          key: forum-categories-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: forum-categories-v1-
+      - name: Randomize collection start by up to eight minutes
+        run: |
+          python - <<'PY'
+          import random
+          import time
+          delay = random.randint(0, 480)
+          print(f"Collection start delay: {delay} seconds.", flush=True)
+          time.sleep(delay)
+          PY
       - name: Collect forum posts
         id: collect
         continue-on-error: true
-        run: python collector.py
+        run: python collector.py --category-cache .cache/forum-categories.json
+      - name: Record collection failure without duplicate email
+        if: steps.collect.outcome != 'success'
+        run: echo "::warning::Forum collection failed. The feed reports ok=false; the health job sends one alert after 60 minutes."
       - name: Prepare reader metadata
         id: reader_metadata
         run: python reader_index.py status
@@ -80,11 +97,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
           ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
         run: gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${ARTIFACT_ID}"
-      - name: Report collection failure
-        if: needs.build.outputs.collection_outcome != 'success'
-        run: |
-          echo "Collection failed. An empty status page was deployed to replace old posts."
-          exit 1
 
   publish-reader-index:
     needs: [build, deploy]
@@ -109,3 +121,24 @@ jobs:
           READER_ARTIFACT_DIGEST: ${{ needs.build.outputs.reader_artifact_digest }}
           FEED_STATUS_JSON: ${{ needs.build.outputs.reader_status_json }}
         run: python3 reader_index.py publish
+
+  collection-health:
+    needs: [build, deploy, publish-reader-index]
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.build.outputs.reader_status_json != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - name: Checkout health monitor
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Record health and notify once per sustained outage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          FEED_STATUS_JSON: ${{ needs.build.outputs.reader_status_json }}
+        run: python3 collection_health.py
