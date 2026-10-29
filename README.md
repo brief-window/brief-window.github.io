@@ -6,13 +6,13 @@
 
 ## 抓取方式
 
-- 匿名访问 `/site.json` 获取分类和父分类关系。
+- 匿名访问 `/site.json` 获取分类和父分类关系。自动采集使用有效期24小时的分类缓存；每次使用仍校验目标分类。缓存只保留分类ID、名称和父子关系，不缓存帖子、账号或凭据。缓存过期且刷新失败时照常报告失败。
 - 从 `/posts.json` 开始，以每页最小 Post ID 作为下一页的 `before`。
 - 正文优先使用完整 `raw` 字段，缺少时从完整 `cooked` 转成文字；不使用截断的 `excerpt`。
 - 时间按 `created_at` 筛选，范围为生成时间之前 3 小时，排除未来、隐藏、删除和非普通帖子。
 - 整页早于截止时间时停止；单个旧帖不会提前终止分页。此方法依赖论坛新建 Post ID 与发帖时间通常一致；不扫描任意历史导入记录。
 - 请求间隔至少 1.5 秒；对 429 和服务端错误有限重试。`cloudscraper` 不保证现代 Cloudflare 挑战一定可通过；没有登录 cookie、代理或 CAPTCHA 服务。
-- 达到分页上限、分类不匹配、游标失效或请求失败时不发布部分数据。发布空的错误状态页替换上一次内容，并将 workflow 标记为失败。
+- 达到分页上限、分类不匹配、游标失效或请求失败时不发布部分数据。发布空的错误状态页替换上一次内容；`status.json`、`feed.json` 和 `latest.json` 均明确报告 `ok=false`。日志保留失败及警告，通知由下述持续故障规则处理。
 
 ## 本地运行
 
@@ -31,11 +31,20 @@ python3 -m venv .venv
 2. Actions → **Refresh Brief Window** → **Run workflow**。
 3. 查看 <https://brief-window.github.io/> 和 <https://brief-window.github.io/status.json>。
 
-自动刷新由 cron-job.org 每小时的第 `3,13,23,33,43,53` 分钟通过 GitHub REST API 触发 `refresh.yml` 的 `workflow_dispatch`，间隔为 10 分钟。GitHub 原生 `schedule`（第 `4,14,24,34,44,54` 分钟）暂保留为备用，可能延迟或丢弃。
+自动刷新由 cron-job.org 每小时的第 `3,33` 分钟通过 GitHub REST API 触发 `refresh.yml` 的 `workflow_dispatch`，间隔为30分钟。删除重复的 GitHub 原生 `schedule`，只保留一套定时触发；仍可手动运行。
 
 外部自动触发和手动运行在 GitHub 中都显示为 `workflow_dispatch`；是否按时自动触发，应查看 cron-job.org 的执行历史。请求返回成功只表示 GitHub 接收了触发请求，还需确认 Actions 完成，并检查页面 `Generated UTC` 和 `status.json` 的 `generated_at` 已更新。取消运行、部署或平台故障也可能让旧页面继续存在。
 
 定时服务使用限定到本仓库、仅授予 Actions 读写权限的 fine-grained token。凭据保存在定时服务配置中，不写入仓库；到期前须在服务中替换。
+
+## 合并故障通知
+
+- `collection_health.py` 在每轮结束时将编号、检查时间、连续失败起点/次数和通知线程编号写入 `collection-health.json`。这是元数据，不包含帖子正文或错误响应正文。
+- 从首次观察到采集失败计时，连续失败达到60分钟后，在下一次检查创建一个 GitHub 故障 Issue 并提及 `@ruiningyang1`。同一故障后续不再重复发信。未满60分钟即恢复的短暂故障不发送通知。
+- 已通知的故障恢复后，在同一线程评论并关闭 Issue，发送一次恢复通知。通过账号已有的「Participating, @mentions and custom → Email」接收，无需邮件服务或新API key。
+- 消息发送前查重；POST响应不明确时先读回核对，不盲目重发。重复运行、Issue已被关闭、状态写入中断后恢复均有查重测试。权限或状态损坏会使监控job失败，避免把未发送的通知记为已发送。
+- 普通采集失败不再让部署job执行 `exit 1`，因此不会每半小时触发一次 Actions 失败邮件。工作流绿色表示发布和监控执行完成，**不代表采集成功**；采集结果必须看 `ok` 和「Collection health」摘要。部署、测试、目录发布、健康记录/通知等实际执行故障仍会让工作流失败并保留原有通知。
+- 该监控依赖工作流实际运行，不能检测定时服务完全停止执行的情况。60分钟规则按已执行的连续失败样本计算；不会追溯部署此规则之前的故障，也不会自动补生成缺失的小时报告。
 
 ## 通过 GitHub 连接读取
 

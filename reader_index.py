@@ -81,8 +81,8 @@ class GitHubError(RuntimeError):
 
 
 class GitHub:
-    def api(self, method, path, body=None, missing_ok=False):
-        for attempt in range(5):
+    def api(self, method, path, body=None, missing_ok=False, attempts=5):
+        for attempt in range(attempts):
             command = ["gh", "api", "--include", "--method", method, path]
             if body is not None:
                 command += ["--input", "-"]
@@ -104,9 +104,9 @@ class GitHub:
                 ))
             except (subprocess.TimeoutExpired, json.JSONDecodeError):
                 code, transient = None, True
-            if not transient or attempt == 4:
+            if not transient or attempt == attempts - 1:
                 raise GitHubError(code)
-            print(f"GitHub HTTP {code or 'timeout'}; retry {attempt + 2}/5", flush=True)
+            print(f"GitHub HTTP {code or 'timeout'}; retry {attempt + 2}/{attempts}", flush=True)
             time.sleep(2 ** (attempt + 1))
 
 

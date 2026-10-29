@@ -105,6 +105,35 @@ def category_roots(data: dict) -> tuple[dict[int, int], dict[int, str]]:
     return roots, names
 
 
+def category_metadata(client, cache_path, now):
+    """Cache only category IDs, names and parent relationships for 24 hours."""
+    if cache_path is not None:
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            age = (now - parse_time(cached["fetched_at"])).total_seconds()
+            if (cached["schema_version"] == 1 and cached["source"] == BASE_URL
+                    and 0 <= age < 86400):
+                result = category_roots(cached["data"])
+                print("Using validated category metadata cache.")
+                return result
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, CollectionError):
+            pass
+    data = client.get_json("/site.json")
+    result = category_roots(data)
+    if cache_path is not None:
+        # Never retain /site.json fields unrelated to category classification.
+        metadata = [{key: category[key] for key in ("id", "name", "parent_category_id")
+                     if key in category} for category in data["categories"]]
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = cache_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps({
+            "schema_version": 1, "source": BASE_URL,
+            "fetched_at": now.isoformat(), "data": {"categories": metadata},
+        }, ensure_ascii=False) + "\n", encoding="utf-8")
+        temporary.replace(cache_path)
+    return result
+
+
 def full_text(post: dict) -> str:
     # /posts.json includes raw Markdown; do not use its truncated excerpt.
     if isinstance(post.get("raw"), str):
@@ -274,6 +303,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path("public"))
     parser.add_argument("--request-delay", type=float, default=1.5)
     parser.add_argument("--max-pages", type=int, default=200)
+    parser.add_argument("--category-cache", type=Path)
     args = parser.parse_args()
     if args.request_delay < 1 or args.max_pages < 1:
         parser.error("request-delay must be at least 1 second and max-pages must be positive")
@@ -282,7 +312,7 @@ def main() -> int:
     write_output(args.output, [], now, cutoff, error="Collection has not completed.")
     try:
         client = ForumClient(args.request_delay)
-        roots, names = category_roots(client.get_json("/site.json"))
+        roots, names = category_metadata(client, args.category_cache, now)
         posts, pages = fetch_recent_posts(client, cutoff, now, roots, names, args.max_pages)
         write_output(args.output, posts, now, cutoff, pages)
         print(f"Recent target posts: {len(posts)}; topics: {len({p['topic_id'] for p in posts})}; pages: {pages}")
