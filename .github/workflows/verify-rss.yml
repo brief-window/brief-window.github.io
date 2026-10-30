@@ -1,0 +1,58 @@
+name: Verify public RSS source
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-rss:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Check collector
+        run: python -m unittest discover -s tests
+      - name: Restore existing public category metadata
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/forum-categories.json
+          key: forum-categories-probe-${{ github.run_id }}
+          restore-keys: forum-categories-v1-
+      - name: Restore public topic classification metadata
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/forum-topics.json
+          key: forum-topics-probe-${{ github.run_id }}
+          restore-keys: forum-topics-v1-
+      - name: Collect and validate a complete three-hour RSS window
+        run: |
+          python collector.py --source rss --category-cache .cache/forum-categories.json --topic-cache .cache/forum-topics.json --output rss-validation
+          python - <<'PY'
+          import json
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          feed = json.loads(Path('rss-validation/feed.json').read_text())
+          assert feed['ok'] is True and feed['error'] is None
+          start = datetime.fromisoformat(feed['cutoff'])
+          end = datetime.fromisoformat(feed['generated_at'])
+          assert end - start == timedelta(hours=3)
+          posts = feed['posts']
+          assert posts, 'No bodies available to verify in this window'
+          assert len(posts) == feed['total_posts'] == len({p['id'] for p in posts})
+          assert len({p['topic_id'] for p in posts}) == feed['total_topics']
+          assert all(start <= datetime.fromisoformat(p['created_at']) <= end for p in posts)
+          assert all(p['category'] in {'玩卡', '旅行', '理财'} and p['text'].strip() for p in posts)
+          print('Validated complete RSS window:', feed['generated_at'], feed['total_posts'], 'posts,', feed['total_topics'], 'topics')
+          PY
+      - name: Save verified topic classification metadata for production
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/forum-topics.json
+          key: forum-topics-v1-rss-verified-${{ github.run_id }}
