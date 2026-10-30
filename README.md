@@ -6,7 +6,7 @@
 
 ## 抓取方式
 
-- 本地候选实现和待发布工作流改用 Discourse 公开的 `/posts.rss`，以每页最小 Post ID 作为下一页的 `before`。使用固定、如实标识应用的 User-Agent；不在 JSON 失败后切换身份尝试。GitHub 环境与连续定时运行的验收状态见 `LOCAL_SETUP.md`。
+- 生产采集改用 Discourse 公开的 `/posts.rss`，以每页最小 Post ID 作为下一页的 `before`。使用固定、如实标识应用的 User-Agent；不在 JSON 失败后切换身份尝试。已完成的读取验收见下文；一次成功不代表长期可用性保证。
 - 匿名访问 `/site.json` 获取分类和父分类关系；分类缓存有效期24小时，每次使用仍校验目标分类。帖子 RSS 不直接提供分类编号，因此用话题的公开 `/t/topic/<id>.rss` 中的分类名称与这份元数据精确匹配，分类名称歧义或未知时报告失败。话题分类缓存同样有效期24小时；缓存只保存分类信息，不保存正文、账号或凭据。缓存过期且刷新失败时照常报告失败。
 - 正文使用 RSS 中完整的已渲染正文，转成文字并保留链接、图片地址。它不是原始 Markdown 字节副本，也不是 `excerpt`。全局帖子 ID 来自 RSS 的稳定 `guid`，话题 ID 和楼层来自原帖链接，包含高楼层的 `?page=N#post_N` 形式。
 - 时间按 RSS 的发帖时间筛选，范围为生成时间之前 3 小时，排除未来帖子。Discourse 最新帖子 RSS 在来源端只选择公开、可见、未隐藏、未删除的普通帖子。
@@ -28,7 +28,7 @@ python3 -m venv .venv
 
 ## GitHub Pages
 
-候选实现先运行手动工作流 **Verify public RSS source**，从 GitHub 运行环境读取并验证完整三小时正文；它不部署 Pages、不更新生产目录、不触发健康通知。验收通过后再应用生产工作流的 RSS 切换。公开 RSS 仍可能限流或拒绝访问，本机成功不能替代 GitHub 与连续定时运行的验收。
+手动工作流 **Verify public RSS source** 从 GitHub 运行环境读取并验证完整三小时正文；它不部署 Pages、不更新生产目录、不触发健康通知，成功后仅保存分类映射缓存供生产复用。2026-10-30 已通过[完整窗口验收](https://github.com/brief-window/brief-window.github.io/actions/runs/41088099494)：17页、541条帖子、92个目标话题，54项测试通过；随后切换生产工作流为 RSS。公开 RSS 仍可能限流或拒绝访问；连续定时运行的稳定性仍须观察，不能由一次手动验收推定。
 
 1. Settings → Pages → Source 选 **GitHub Actions**，Custom domain 留空。
 2. Actions → **Refresh Brief Window** → **Run workflow**。
