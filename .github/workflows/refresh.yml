@@ -39,6 +39,12 @@ jobs:
           path: .cache/forum-categories.json
           key: forum-categories-v1-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: forum-categories-v1-
+      - name: Restore RSS topic classification cache (no post bodies)
+        uses: actions/cache@v4
+        with:
+          path: .cache/forum-topics.json
+          key: forum-topics-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: forum-topics-v1-
       - name: Randomize collection start by up to eight minutes
         run: |
           python - <<'PY'
@@ -51,7 +57,7 @@ jobs:
       - name: Collect forum posts
         id: collect
         continue-on-error: true
-        run: python collector.py --category-cache .cache/forum-categories.json
+        run: python collector.py --source rss --category-cache .cache/forum-categories.json --topic-cache .cache/forum-topics.json
       - name: Record collection failure without duplicate email
         if: steps.collect.outcome != 'success'
         run: echo "::warning::Forum collection failed. The feed reports ok=false; the health job sends one alert after 60 minutes."
