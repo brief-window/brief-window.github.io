@@ -98,7 +98,7 @@ class CollectorTests(unittest.TestCase):
             (output / "index.html").write_text("STALE POST", encoding="utf-8")
             (output / "feed.json").write_text('{"posts": ["STALE POST"]}', encoding="utf-8")
             with patch.object(collector.ForumClient, "get_json", side_effect=collector.CollectionError("HTTP 403")), \
-                 patch("sys.argv", ["collector.py", "--output", str(output)]):
+                 patch("sys.argv", ["collector.py", "--source", "json", "--output", str(output)]):
                 self.assertEqual(collector.main(), 1)
             text = (output / "index.html").read_text(encoding="utf-8")
             self.assertNotIn("STALE POST", text)
