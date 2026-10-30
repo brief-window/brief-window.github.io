@@ -6,13 +6,14 @@
 
 ## 抓取方式
 
-- 匿名访问 `/site.json` 获取分类和父分类关系。自动采集使用有效期24小时的分类缓存；每次使用仍校验目标分类。缓存只保留分类ID、名称和父子关系，不缓存帖子、账号或凭据。缓存过期且刷新失败时照常报告失败。
-- 从 `/posts.json` 开始，以每页最小 Post ID 作为下一页的 `before`。
-- 正文优先使用完整 `raw` 字段，缺少时从完整 `cooked` 转成文字；不使用截断的 `excerpt`。
-- 时间按 `created_at` 筛选，范围为生成时间之前 3 小时，排除未来、隐藏、删除和非普通帖子。
+- 本地候选实现和待发布工作流改用 Discourse 公开的 `/posts.rss`，以每页最小 Post ID 作为下一页的 `before`。使用固定、如实标识应用的 User-Agent；不在 JSON 失败后切换身份尝试。GitHub 环境与连续定时运行的验收状态见 `LOCAL_SETUP.md`。
+- 匿名访问 `/site.json` 获取分类和父分类关系；分类缓存有效期24小时，每次使用仍校验目标分类。帖子 RSS 不直接提供分类编号，因此用话题的公开 `/t/topic/<id>.rss` 中的分类名称与这份元数据精确匹配，分类名称歧义或未知时报告失败。话题分类缓存同样有效期24小时；缓存只保存分类信息，不保存正文、账号或凭据。缓存过期且刷新失败时照常报告失败。
+- 正文使用 RSS 中完整的已渲染正文，转成文字并保留链接、图片地址。它不是原始 Markdown 字节副本，也不是 `excerpt`。全局帖子 ID 来自 RSS 的稳定 `guid`，话题 ID 和楼层来自原帖链接，包含高楼层的 `?page=N#post_N` 形式。
+- 时间按 RSS 的发帖时间筛选，范围为生成时间之前 3 小时，排除未来帖子。Discourse 最新帖子 RSS 在来源端只选择公开、可见、未隐藏、未删除的普通帖子。
 - 整页早于截止时间时停止；单个旧帖不会提前终止分页。此方法依赖论坛新建 Post ID 与发帖时间通常一致；不扫描任意历史导入记录。
-- 请求间隔至少 1.5 秒；对 429 和服务端错误有限重试。`cloudscraper` 不保证现代 Cloudflare 挑战一定可通过；没有登录 cookie、代理或 CAPTCHA 服务。
+- 请求间隔至少3秒；对网络、429和服务端错误最多尝试3次。服务器要求超过60秒冷却时结束本轮，401/403直接结束本轮；不使用登录 cookie、代理、浏览器伪装或 CAPTCHA 服务。冷启动需要逐话题核对分类，比命中分类缓存的后续运行慢。
 - 达到分页上限、分类不匹配、游标失效或请求失败时不发布部分数据。发布空的错误状态页替换上一次内容；`status.json`、`feed.json` 和 `latest.json` 均明确报告 `ok=false`。日志保留失败及警告，通知由下述持续故障规则处理。
+- 原 JSON 方式保留为显式诊断选项 `--source json`，不是 RSS 失败时自动回退的读取方式。三小时窗口和长期保留策略未改变；超过窗口且从未成功采集的内容不会被这次改动自动补回。
 
 ## 本地运行
 
@@ -20,12 +21,14 @@
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python collector.py
+.venv/bin/python collector.py --source rss --category-cache .cache/forum-categories.json --topic-cache .cache/forum-topics.json
 ```
 
 输出：`public/index.html`、`public/feed.json`、`public/status.json`、`public/reader.html`、`public/robots.txt`、`public/.nojekyll`。`reader.html` 是不足 1 KiB 的 HTML 状态入口，只包含生成时间、计数、状态和正文链接，可用来区分网页工具访问失败与正文大小问题。`feed.json` 保留本轮全部原始正文、Post ID、Topic ID、分类和时间。`public/` 被 Git 忽略，帖子正文不会进入 Git 历史。
 
 ## GitHub Pages
+
+候选实现先运行手动工作流 **Verify public RSS source**，从 GitHub 运行环境读取并验证完整三小时正文；它不部署 Pages、不更新生产目录、不触发健康通知。验收通过后再应用生产工作流的 RSS 切换。公开 RSS 仍可能限流或拒绝访问，本机成功不能替代 GitHub 与连续定时运行的验收。
 
 1. Settings → Pages → Source 选 **GitHub Actions**，Custom domain 留空。
 2. Actions → **Refresh Brief Window** → **Run workflow**。
@@ -70,4 +73,4 @@ python3 -m venv .venv
 
 浏览器或普通 HTTP 请求可以读取页面，不代表 GPT 的网页读取工具一定能直接访问；需单独验证兼容性。OpenAI 的搜索读取与训练爬虫设置相互独立；用户主动访问的 `ChatGPT-User` 请求也不一定适用 robots 规则。robots 更新可能需要时间被读取工具识别，不能把部署成功当作读取成功。参考：[OpenAI 爬虫说明](https://developers.openai.com/api/docs/bots)。
 
-参考：[Discourse API](https://docs.discourse.org/#tag/Posts/operation/listPosts)、[Discourse 最新帖子查询](https://github.com/discourse/discourse/blob/main/lib/latest_posts_query.rb)、[GitHub Pages workflow](https://docs.github.com/en/get-started/start-your-journey/deploying-your-website-automatically)、[定时任务延迟](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#scheduled-workflows-running-at-unexpected-times)。
+参考：[Discourse API](https://docs.discourse.org/#tag/Posts/operation/listPosts)、[Discourse 最新帖子查询](https://github.com/discourse/discourse/blob/main/lib/latest_posts_query.rb)、[最新帖子 RSS 正文模板](https://github.com/discourse/discourse/blob/main/app/views/posts/latest.rss.erb)、[GitHub Pages workflow](https://docs.github.com/en/get-started/start-your-journey/deploying-your-website-automatically)、[定时任务延迟](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows#scheduled-workflows-running-at-unexpected-times)。

@@ -4,3 +4,4 @@ __pycache__/
 public/
 .DS_Store
 .cache/
+.state/

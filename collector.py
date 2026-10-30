@@ -15,6 +15,7 @@ from urllib.parse import urljoin
 import cloudscraper
 import requests
 from bs4 import BeautifulSoup
+from rss_source import RSSCollectionError, RssForumClient, fetch_recent_posts_rss
 
 BASE_URL = "https://www.uscardforum.com"
 LOOKBACK_HOURS = 3
@@ -221,7 +222,7 @@ def render(posts: list[dict], now: datetime, cutoff: datetime, error: str | None
         f'<p>Generated UTC: <time>{esc(now.isoformat())}</time><br>',
         f'Window UTC: {esc(cutoff.isoformat())} — {esc(now.isoformat())}<br>',
         f'Total posts: {len(posts)}</p>',
-        '<p>每约 10 分钟更新。时间窗口以 Generated UTC 为准；若时间戳过旧，请勿将本页当作当前数据。</p>',
+        '<p>平均约 30 分钟更新，带少量随机延迟。时间窗口以 Generated UTC 为准；若时间戳过旧，请勿将本页当作当前数据。</p>',
     ]
     if error:
         out.append(f'<p class="notice">抓取失败；本次不提供帖子。{esc(error)}</p>')
@@ -301,24 +302,35 @@ def write_output(output: Path, posts: list[dict], now: datetime, cutoff: datetim
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("public"))
-    parser.add_argument("--request-delay", type=float, default=1.5)
+    parser.add_argument("--request-delay", type=float, default=3.0)
     parser.add_argument("--max-pages", type=int, default=200)
     parser.add_argument("--category-cache", type=Path)
+    parser.add_argument("--source", choices=("rss", "json"), default="json")
+    parser.add_argument("--topic-cache", type=Path)
     args = parser.parse_args()
     if args.request_delay < 1 or args.max_pages < 1:
         parser.error("request-delay must be at least 1 second and max-pages must be positive")
     now = datetime.now(timezone.utc)
+    if args.source == "rss":
+        now = now.replace(microsecond=0)  # RSS dates have one-second precision.
     cutoff = now - timedelta(hours=LOOKBACK_HOURS)
     write_output(args.output, [], now, cutoff, error="Collection has not completed.")
     try:
-        client = ForumClient(args.request_delay)
+        client = RssForumClient(args.request_delay) if args.source == "rss" else ForumClient(args.request_delay)
         roots, names = category_metadata(client, args.category_cache, now)
-        posts, pages = fetch_recent_posts(client, cutoff, now, roots, names, args.max_pages)
+        if args.source == "rss":
+            posts, pages = fetch_recent_posts_rss(client, cutoff, now, roots, names,
+                                                  TARGET_CATEGORIES, full_text, args.max_pages, args.topic_cache)
+        else:
+            posts, pages = fetch_recent_posts(client, cutoff, now, roots, names, args.max_pages)
         write_output(args.output, posts, now, cutoff, pages)
+        print(f"Collection source: {args.source}; full three-hour window covered.")
         print(f"Recent target posts: {len(posts)}; topics: {len({p['topic_id'] for p in posts})}; pages: {pages}")
+        if args.source == "rss":
+            print(f"RSS HTTP requests: {client.request_count}")
         return 0
     except Exception as exc:
-        error = str(exc) if isinstance(exc, CollectionError) else f"Unexpected collector error ({type(exc).__name__})."
+        error = str(exc) if isinstance(exc, (CollectionError, RSSCollectionError)) else f"Unexpected collector error ({type(exc).__name__})."
         write_output(args.output, [], now, cutoff, error=error)
         print(error, file=sys.stderr)
         return 1
