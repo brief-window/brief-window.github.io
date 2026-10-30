@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "last_run_id": 41020769810,
-  "checked_at": "2026-10-30T07:40:54.640471+00:00",
-  "last_ok": true,
+  "last_run_id": 41023858094,
+  "checked_at": "2026-10-30T08:04:49.840969+00:00",
+  "last_ok": false,
   "last_success_at": "2026-10-30T07:40:54.640471+00:00",
-  "first_failed_at": null,
-  "failure_count": 0,
+  "first_failed_at": "2026-10-30T08:04:49.840969+00:00",
+  "failure_count": 1,
   "alert_issue_number": null
 }
