@@ -9,7 +9,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -105,7 +105,7 @@ jobs:
         run: gh api --method DELETE "repos/${GH_REPO}/actions/artifacts/${ARTIFACT_ID}"
 
   publish-reader-index:
-    needs: [build, deploy]
+    needs: [build]
     if: ${{ always() && github.ref == 'refs/heads/main' && needs.build.result == 'success' && needs.build.outputs.reader_artifact_id != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -129,7 +129,7 @@ jobs:
         run: python3 reader_index.py publish
 
   collection-health:
-    needs: [build, deploy, publish-reader-index]
+    needs: [build, publish-reader-index]
     if: ${{ always() && github.ref == 'refs/heads/main' && needs.build.outputs.reader_status_json != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
